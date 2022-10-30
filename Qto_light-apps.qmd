@@ -1,0 +1,150 @@
+---
+title: "The light environment"
+author: "Pedro J. Aphalo"
+format: html
+server: shiny
+---
+
+```{r, message=FALSE}
+library(ggplot2)
+library(ggpmisc)
+library(ggspectra)
+library(photobiologyPlants)
+library(photobiologySun)
+library(photobiologyLamps)
+library(photobiologyLEDs)
+```
+
+## Quantities and units for light
+
+```{r}
+inputPanel(
+  selectInput("quantity", label = "Spectrum expressed as:",
+              choices = c("energy irradiance" = "e_irrad", 
+                          "photon irradiance" = "q_irrad",
+                          "illuminance" = "illuminance",
+                          "PAR photon irraddiance (PPFD)" = "PAR_q_irrad",
+                          "PAR energy irraddiance" = "PAR_e_irrad",
+                          "UV GPAS (Caldwell's)" = "GEN_G_e_irrad")),
+  selectInput("light_source", label = "Light source:",
+              choices = c("sun", "cloudy", "vegetation shade", 
+                          "neutral white LED", "cool white LED", "warm white LED",
+                          "grow light broad spectrum", "R+B LED grow light")),
+  sliderInput(inputId = "wl.range0", label = "Wavelength range (nm)", min = 250, max = 900, value = c(280, 800)),
+  
+)
+plotOutput("spctPlot")
+```
+
+```{r, message=FALSE}
+#| context: server
+library(ggspectra)
+library(photobiologyPlants)
+library(photobiologySun)
+library(photobiologyLamps)
+library(photobiologyLEDs)
+
+output$spctPlot <- renderPlot({
+    spct <- switch(input[["light_source"]],
+                   sun = sun.spct,
+                   cloudy = sun.spct,
+                   "vegetation shade" = sun.spct,
+                   "neutral white LED" = lamps.mspct$Airam.LED.14W.4000K,
+                   "cool white LED" = lamps.mspct$V.light.LED.2W.6000K,
+                   "warm white LED" = lamps.mspct$Osram.LED.10W.2700K,
+                   "grow light broad spectrum" = lamps.mspct$Valoya.LED.B50.AP67.LED.grow.lamp,
+                   "R+B LED grow light" = leds.mspct$Epistar_3W_Plant_Grow_LED)
+    if (grepl("PAR", input[["quantity"]])) {
+      w.band <- PAR()
+      plot.w.band <- PAR()
+    } else if (grepl("GEN_G", input[["quantity"]])) {
+      w.band <- GEN_G()
+      plot.w.band <- PAR()
+    } else if (input[["quantity"]] == "illuminance") {
+      w.band <- ciev2.spct
+      plot.w.band <- VIS_bands()
+    } else {
+      w.band <- waveband(spct)
+      plot.w.band <- Plant_bands(std = "sensory10")
+    }
+    if (grepl("e_", input[["quantity"]])) energy_as_default() else photon_as_default()
+    
+    z <- spct * w.band
+    if (is.waveband(w.band)) {
+      z <- interpolate_spct(z, spct$w.length[-nrow(spct)], fill = 0)
+    }
+    
+  autoplot(z, geom = "spct", w.band = plot.w.band,
+           range = input[["wl.range0"]], span = 51) +
+    theme_bw(15)
+})
+```
+
+## PAR in energy or photon units
+
+The definition of PPFD or PAR photon irradiance of McCree assumes equal effectiveness per photon. How does the definition of PAR look like expressed in an energy basis?
+
+```{r}
+inputPanel(
+  selectInput("unit_out", label = "PAR response on:",
+              choices = c("photon basis " = "photon",
+                          "energy basis " = "energy")),
+)
+plotOutput("parPlot")
+```
+
+```{r, message=FALSE}
+#| context: server
+library(ggspectra)
+library(photobiologyWavebands)
+
+output$parPlot <- renderPlot({
+  autoplot(PAR(), unit.in = "photon", unit.out = input[["unit_out"]], geom = "spct") +
+    theme_bw(15)
+})
+```
+
+## Sunlight through a day
+
+PAR photon irradiance we all know varies through the day. How does the shape of the spectrum vary? We can normalise the spectral irradiance from different times of the day to be 1 at, for example, 550 nm. We can alternatively re-scale the spectra to, for example, 100 umol m^-2^ s^-1^ of PAR.
+
+```{r}
+inputPanel(
+  selectInput("unit_out1", label = "Spectrum expressed as:",
+              choices = c("photon irradiance" = "photon",
+                          "energy irradiance" = "energy")),
+  # selectInput("season", label = "Season in Helsinki:",
+  #             choices = c("summer",
+  #                         "winter")),
+  selectInput("norm1", label = "Normalised/scaled: ",
+              choices = c("no", "1 at 550 nm" = "wl550", "PAR 100 umol m-2 s-1 " = "PAR100")),
+  sliderInput(inputId = "wl.range1", label = "Wavelength range (nm)", min = 250, max = 900, value = c(280, 800), post = " nm"),
+  
+  sliderInput(inputId = "spct_idx", label = "Time of day (sequence)", min = 1, max = 18, value = 11, step = 1)
+)
+plotOutput("dayPlot")
+```
+
+```{r, warning=FALSE, message=FALSE}
+#| context: server
+library(ggspectra)
+library(photobiologySun)
+
+sun_hourly_june.mspct <- subset2mspct(sun_hourly_june.spct)[1:18]
+sun_hourly_june_norm550.mspct <- normalise(sun_hourly_june.mspct, norm = 550)
+sun_hourly_june_PAR1000.mspct <- fscale(sun_hourly_june.mspct, range = PAR(), f = q_irrad, target = 100)
+mspct.names <- names(sun_hourly_june.mspct)
+output$dayPlot <- renderPlot({
+  i <- input[["spct_idx"]]
+  mspct <- switch(input[["norm1"]],
+                 wl550 = sun_hourly_june_norm550.mspct,
+                 PAR100 = sun_hourly_june_PAR1000.mspct,
+                 no = sun_hourly_june.mspct)
+    autoplot(mspct[c(11, i)], 
+           range = input[["wl.range1"]],
+           unit.out = input[["unit_out1"]], geom = "spct", norm = "skip",
+           ylim = ifelse(input[["norm"]] == "max", c(NA, NA), c(NA, 6))) +
+#    ggtitle(mspct.names[1]) +
+    theme_bw(15) + theme(legend.position = "top")
+})
+```

@@ -1,0 +1,16 @@
+name: Qto_light-apps
+title: Qto_light-apps
+username:
+account: ips-003
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 7418620
+bundleId: 6440432
+url: https://ips-003.shinyapps.io/Qto_light-apps/
+when: 1666729243.79831
+lastSyncTime: 1666729243.79832
+quarto_version: 1.1.189
+quarto_engines: knitr
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: lecture01-no-widgets.html|lecture01-no-widgets.md|lecture01-no-widgets.Rmd|lecture01.Rmd|lecture02.Rmd|Light-apps.Rmd|regression-animation-plot.R|simexp_data/app.R|widgets4Friederike.Rmd

@@ -1,0 +1,80 @@
+---
+title: "1: The light environment"
+subtitle: "A lecture with interactive apps."
+author: "Pedro J. Aphalo"
+date: "5 September 2017"
+output: 
+  ioslides_presentation: 
+    fig_height: 6
+    fig_width: 8
+    keep_md: yes
+    transition: faster
+    widescreen: yes
+    smaller: yes
+    highlight: null
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, message=FALSE}
+library(ggplot2)
+library(ggpmisc)
+library(ggspectra)
+library(photobiologyPlants)
+library(photobiologySun)
+library(photobiologyLamps)
+library(photobiologyLEDs)
+```
+
+# Demos
+
+## Introduction
+
+- In the course we will use some demonstrations that you will run interactively through a web browser interface. 
+
+## Quantities and units for light
+
+```{r sampling, cache=FALSE}
+
+inputPanel(
+  selectInput("quantity", label = "Spectrum expressed as:",
+              choices = c("energy irradiance" = "e_irrad", 
+                          "photon irradiance" = "q_irrad",
+#                          "illuminance" = "illuminance",
+                          "PAR photon irraddiance (PPFD)" = "PAR_q_irrad",
+                          "PAR energy irraddiance" = "PAR_e_irrad")),
+  
+  selectInput("light_source", label = "Light source:",
+              choices = c("sun", "cloudy", "vegetation shade", 
+                          "neutral white LED", "cool white LED", "warm white LED",
+                          "grow light broad spectrum", "R+B LED grow light")),
+  
+#  actionButton("refresh", "New plot")
+  
+)
+
+generate_spectrum <- function() {
+  spct <- switch(input[["light_source"]],
+                  sun = sun.spct,
+                  cloudy = sun.spct,
+                  "vegetation shade" = sun.spct,
+                  "neutral white LED" = lamps.mspct$Airam.LED.14W.4000K,
+                  "cool white LED" = lamps.mspct$V.light.LED.2W.6000K,
+                  "warm white LED" = lamps.mspct$Osram.LED.10W.2700K,
+                  "grow light broad spectrum" = lamps.mspct$Valoya.LED.B50.AP67.LED.grow.lamp,
+                  "R+B LED grow light" = leds.mspct$Epistar_3W_Plant_Grow_LED)
+  if (grepl("PAR", input[["quantity"]])) w.band <- PAR() else w.band <- waveband(spct)
+  if (grepl("e_", input[["quantity"]])) energy_as_default() else photon_as_default()
+  
+  interpolate_spct(spct * w.band, spct$w.length, fill = 0)
+} 
+
+renderPlot({
+  autoplot(generate_spectrum()) +
+    theme_bw(15)
+})
+```
+
