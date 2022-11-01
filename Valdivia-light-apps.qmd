@@ -153,7 +153,7 @@ output$dayPlot <- renderPlot({
 
 ## The daily pattern at 1 h time step
 
-Same data as above
+Same data as above, simulated hourly means.
 
 ```{r}
 sun_hourly_june.mspct <- subset2mspct(sun_hourly_june.spct)[1:18]
@@ -161,12 +161,75 @@ q_irrad.tb <- q_irrad(sun_hourly_june.mspct, w.band = Plant_bands("CIE"))
 q_irrad.tb$time <- ymd_hms(as.character(q_irrad.tb$spct.idx))
 
 (ggplot(q_irrad.tb, aes(time, Q_PAR)) +
-  geom_spct() + geom_line()) /
+  geom_spct() + geom_line() +
+    theme_bw()) /
   (ggplot(q_irrad.tb, aes(time, `Q_]UVB.CIE`)) +
-  geom_spct() + geom_line())
+  geom_spct() + geom_line() +
+    theme_bw(15))
 ```
 
 ## The daily pattern at 1 min time step
 
+Mid summer in Helsinki, measurements are means for each minute compute from measurements once every 5 seconds. The line displays 4440 observations and zooming into the time scale makes visible short-term variability. The 23 June 2022 was a day with broken clouds. The instrumentation of the weather station is described at its [web site](https://viikki-stn.r4photobiology.info/).
 
+```{r}
+inputPanel(
+  selectInput("waveband", label = "Region of the spectrum:",
+              choices = c("PAR", 
+                          "Red light",
+                          "Far-red light",
+                          "Blue light",
+                          "UV-A radiation",
+                          "UV-A1 radiation",
+                          "UV-A2 radiation",
+                          "UV-B radiation")),
+  sliderInput(inputId = "time.range", label = "Local solar time (hh)", min = 0, max = 24, value = c(0, 24)),
+  
+)
+plotOutput("daycoursePlot")
+```
 
+```{r, message=FALSE}
+#| context: server
+library(rlang)
+library(ggplot2)
+library(photobiology)
+
+load("one-day-tb.Rda")
+
+layers_scales <- function(my.fill = "grey50", tod.limits = c(0, 24)) {
+  list(geom_spct(fill = my.fill, alpha = 0.3),
+       geom_line(),
+       scale_x_continuous(name = "Local solar time (hh) at Helsinki, 23 June 2022", 
+                          breaks = c(0, 6, 12, 18, 24),
+                          limits = tod.limits))
+}
+
+output$daycoursePlot <- renderPlot({
+    qty.colname <- switch(input[["waveband"]],
+                   PAR = "PAR_umol_BF",
+                   "Red light" = "red_umol",
+                   "Far-red light" = "far_red_umol",
+                   "Blue light" = "blue_umol",
+                   "UV-A radiation" = "UVA_umol",
+                   "UV-A1 radiation" = "UVA1_umol",
+                   "UV-A2 radiation" = "UVA2_umol",
+                   "UV-B radiation" = "UVB_umol")
+  qty.colours <- c(PAR = "yellow",
+                   "Red light" = "red",
+                   "Far-red light" = "darkred",
+                   "Blue light" = "cornflowerblue",
+                   "UV-A radiation" = "thistle4",
+                   "UV-A1 radiation" = "blue",
+                   "UV-A2 radiation" = "purple",
+                   "UV-B radiation" = "violet")
+    
+  ggplot(one_day.tb[ , c("solar_time", qty.colname)],
+         aes(solar_time, .data[[qty.colname]])) +
+  layers_scales(qty.colours[input[["waveband"]]], input[["time.range"]])  +
+  labs(y = expression("Photon irradiance  "*(mu*mol~s^{-1}~m^{-2}))) +
+    labs(title = input[["waveband"]]) +
+    theme_bw(17)
+
+})
+```
